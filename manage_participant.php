@@ -22,7 +22,8 @@ if (isset($_POST['add_participant'])) {
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
     $phone = trim($_POST['phone']);
-    $event_id = $_POST['event_id'] ?: NULL; // Allow NULL if not selected
+    // Handle empty event_id as NULL
+    $event_id = !empty($_POST['event_id']) ? $_POST['event_id'] : NULL;
     $assigned_role = $_POST['assigned_role'];
     $status = $_POST['status'];
 
@@ -33,15 +34,15 @@ if (isset($_POST['add_participant'])) {
         exit();
     }
 
-    // Check if email already exists for this event (if event is selected)
-    // Or just generally check if user exists? For now, we allow multiple entries if different events, 
-    // but schema might not allow. Let's assume unique email per event or just insert.
-    // The previous schema check showed email as UNIQUE in users table, but this is volunteers/participants table.
-    // Let's assume volunteers table DOES NOT have unique email constraint across everything, 
-    // but let's check duplicates to be safe "valid data".
-
-    $check = $conn->prepare("SELECT id FROM volunteers WHERE email = ? AND event_id = ?");
-    $check->bind_param("si", $email, $event_id);
+    // Check if email already exists for this event
+    if ($event_id) {
+        $check = $conn->prepare("SELECT id FROM volunteers WHERE email = ? AND event_id = ?");
+        $check->bind_param("si", $email, $event_id);
+    } else {
+        $check = $conn->prepare("SELECT id FROM volunteers WHERE email = ? AND event_id IS NULL");
+        $check->bind_param("s", $email);
+    }
+    
     $check->execute();
     if ($check->get_result()->num_rows > 0) {
         $_SESSION['error'] = "This person is already registered for this event!";
@@ -49,8 +50,19 @@ if (isset($_POST['add_participant'])) {
         exit();
     }
 
-    $stmt = $conn->prepare("INSERT INTO volunteers (name, email, phone, event_id, assigned_role, status) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssiss", $name, $email, $phone, $event_id, $assigned_role, $status);
+    // Insert new participant
+    // Use 's' type for event_id to safely handle potential nulls or strings, as MySQL will cast if needed,
+    // but explicit NULL in bind_param requires care.
+    // If event_id is NULL, we can't easily bind it as 'i' without warnings in some PHP versions.
+    // Safe approach: Prepare statement based on nullability.
+    
+    if ($event_id) {
+        $stmt = $conn->prepare("INSERT INTO volunteers (name, email, phone, event_id, assigned_role, status) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssiss", $name, $email, $phone, $event_id, $assigned_role, $status);
+    } else {
+        $stmt = $conn->prepare("INSERT INTO volunteers (name, email, phone, event_id, assigned_role, status) VALUES (?, ?, ?, NULL, ?, ?)");
+        $stmt->bind_param("sssss", $name, $email, $phone, $assigned_role, $status);
+    }
 
     if ($stmt->execute()) {
         $_SESSION['success'] = "Participant added successfully!";
@@ -68,7 +80,8 @@ if (isset($_POST['update_participant'])) {
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
     $phone = trim($_POST['phone']);
-    $event_id = $_POST['event_id'] ?: NULL;
+    // Handle empty event_id as NULL
+    $event_id = !empty($_POST['event_id']) ? $_POST['event_id'] : NULL;
     $assigned_role = $_POST['assigned_role'];
     $status = $_POST['status'];
 
@@ -78,8 +91,13 @@ if (isset($_POST['update_participant'])) {
         exit();
     }
 
-    $stmt = $conn->prepare("UPDATE volunteers SET name=?, email=?, phone=?, event_id=?, assigned_role=?, status=? WHERE id=?");
-    $stmt->bind_param("sssissi", $name, $email, $phone, $event_id, $assigned_role, $status, $participant_id);
+    if ($event_id) {
+        $stmt = $conn->prepare("UPDATE volunteers SET name=?, email=?, phone=?, event_id=?, assigned_role=?, status=? WHERE id=?");
+        $stmt->bind_param("sssissi", $name, $email, $phone, $event_id, $assigned_role, $status, $participant_id);
+    } else {
+        $stmt = $conn->prepare("UPDATE volunteers SET name=?, email=?, phone=?, event_id=NULL, assigned_role=?, status=? WHERE id=?");
+        $stmt->bind_param("sssssi", $name, $email, $phone, $assigned_role, $status, $participant_id);
+    }
 
     if ($stmt->execute()) {
         $_SESSION['success'] = "Participant updated successfully!";

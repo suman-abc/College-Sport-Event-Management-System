@@ -441,6 +441,9 @@ $user_email = $_SESSION['email'];
             <a href="#" class="nav-link">
                 <i class="fas fa-user"></i> Profile
             </a>
+            <a href="#" class="nav-link">
+                <i class="fas fa-bell"></i> Notifications
+            </a>
         </div>
         
         <div class="user-menu">
@@ -614,7 +617,7 @@ $user_email = $_SESSION['email'];
                                             <i class="fas fa-check"></i> Registered
                                         </span>
                                     <?php elseif ($is_upcoming): ?>
-                                        <button class="join-btn" onclick="alert('Please contact admin to register for this event!')">
+                                        <button class="join-btn" onclick="openBookingModal(<?php echo $event['id']; ?>, '<?php echo htmlspecialchars(addslashes($event['title'])); ?>')">
                                             Join Event
                                         </button>
                                     <?php else: ?>
@@ -828,6 +831,8 @@ $user_email = $_SESSION['email'];
                     document.getElementById('my-events-section').classList.add('active');
                 } else if (linkText.includes('profile')) {
                     document.getElementById('profile-section').classList.add('active');
+                } else if (linkText.includes('notifications')) {
+                    document.getElementById('notifications-section').classList.add('active');
                 }
                 
                 // Scroll to top
@@ -852,172 +857,104 @@ $user_email = $_SESSION['email'];
                 });
             });
         }
-    </script>
-</body>
-</html>
-            <!-- Sidebar: My Events -->
-            <div class="dashboard-sidebar">
-                <div class="my-events-card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-ticket-alt"></i> My Registrations</h3>
-                    </div>
-                    
-                    <?php
-                    // Get user's registered events
-                    $my_reg_query = "SELECT v.*, e.title, e.event_date, e.event_time 
-                                     FROM volunteers v 
-                                     JOIN events e ON v.event_id = e.id 
-                                     WHERE v.email = ? 
-                                     ORDER BY e.event_date DESC LIMIT 5";
-                    $stmt = $conn->prepare($my_reg_query);
-                    $stmt->bind_param("s", $user_email);
-                    $stmt->execute();
-                    $my_regs = $stmt->get_result();
 
-                    if ($my_regs->num_rows > 0) {
-                        while ($reg = $my_regs->fetch_assoc()) {
-                            $is_upcoming = strtotime($reg['event_date']) >= strtotime('today');
-                            ?>
-                            <div class="my-event-item">
-                                <div class="my-event-title"><?php echo htmlspecialchars($reg['title']); ?></div>
-                                <div class="my-event-meta">
-                                    <span><i class="far fa-calendar"></i> <?php echo date('M d', strtotime($reg['event_date'])); ?></span>
-                                    <span><i class="far fa-clock"></i> <?php echo date('H:i', strtotime($reg['event_time'])); ?></span>
-                                </div>
-                                <div>
-                                    <span class="my-event-role"><?php echo htmlspecialchars($reg['assigned_role']); ?></span>
-                                    <?php if ($is_upcoming): ?>
-                                        <span style="color: #2e7d32; font-size: 0.8rem; margin-left: 10px;">
-                                            <i class="fas fa-check-circle"></i> Active
-                                        </span>
-                                    <?php else: ?>
-                                        <span style="color: #999; font-size: 0.8rem; margin-left: 10px;">
-                                            <i class="fas fa-history"></i> Completed
-                                        </span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <?php
+        // Booking Modal
+        function openBookingModal(eventId, eventTitle) {
+            document.getElementById('booking-event-id').value = eventId;
+            document.getElementById('booking-event-title').value = eventTitle;
+            document.getElementById('booking-modal').style.display = 'flex';
+        }
+        
+        function closeBookingModal() {
+            document.getElementById('booking-modal').style.display = 'none';
+        }
+        
+        // Close modal on outside click
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('booking-modal')) {
+                closeBookingModal();
+            }
+        }
+    </script>
+
+    <!-- Booking Modal -->
+    <div id="booking-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center;">
+        <div style="background: white; width: 90%; max-width: 500px; padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: #0d47a1; margin: 0;">Book Event Ground</h3>
+                <button onclick="closeBookingModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            
+            <form action="book_event.php" method="POST">
+                <input type="hidden" id="booking-event-id" name="event_id">
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #666;">Event</label>
+                    <input type="text" id="booking-event-title" readonly style="width: 100%; padding: 10px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #666;">Select Ground</label>
+                    <select name="ground_id" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <option value="">-- Choose a Ground --</option>
+                        <?php
+                        $g_query = "SELECT * FROM grounds WHERE status = 'available'";
+                        $grounds = mysqli_query($conn, $g_query);
+                        while($g = mysqli_fetch_assoc($grounds)) {
+                            echo "<option value='".$g['id']."'>".$g['name']." (" . $g['location'] . ")</option>";
                         }
-                    } else {
-                        echo '<div style="text-align:center; padding: 20px; color: #999;">
-                                <i class="fas fa-clipboard-list" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                                <p>You haven\'t joined any events yet.</p>
-                              </div>';
-                    }
-                    ?>
+                        ?>
+                    </select>
                 </div>
                 
-                <!-- Quick Contact Card -->
-                <div class="my-events-card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-headset"></i> Need Help?</h3>
+                <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 5px; color: #666;">Date</label>
+                        <input type="date" name="booking_date" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                     </div>
-                    <p style="color: #666; font-size: 0.9rem; line-height: 1.5;">
-                        Have questions about an event? Contact the admin team.
-                    </p>
-                    <a href="mailto:admin@college.edu" style="display: block; margin-top: 15px; color: #0d47a1; text-decoration: none; font-weight: 600;">
-                        <i class="fas fa-envelope"></i> Contact Admin
-                    </a>
+                    <div style="flex: 1;">
+                        <label style="display: block; margin-bottom: 5px; color: #666;">Time</label>
+                        <input type="time" name="booking_time" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    </div>
                 </div>
-            </div>
-
-            <!-- Main Feed: All Events -->
-            <div class="events-feed">
-                <div class="feed-header">
-                    <h2 class="feed-title">Upcoming Events</h2>
-                    <input type="text" placeholder="Search events..." class="search-box">
-                </div>
-
-                <?php
-                // Fetch all events
-                $all_events_query = "SELECT * FROM events ORDER BY event_date DESC";
-                $all_events = mysqli_query($conn, $all_events_query);
-
-                if (mysqli_num_rows($all_events) > 0) {
-                    while ($event = mysqli_fetch_assoc($all_events)) {
-                        $is_upcoming = strtotime($event['event_date']) >= strtotime('today');
-                        
-                        // Check if user is already joined
-                        $check_join = $conn->prepare("SELECT id FROM volunteers WHERE event_id = ? AND email = ?");
-                        $check_join->bind_param("is", $event['id'], $user_email);
-                        $check_join->execute();
-                        $is_joined = $check_join->get_result()->num_rows > 0;
-                        ?>
-                        <div class="event-card">
-                            <div class="event-info">
-                                <div class="event-main">
-                                    <div class="event-icon">
-                                        <i class="fas fa-trophy"></i>
-                                    </div>
-                                    <div>
-                                        <div class="event-title-lg">
-                                            <?php echo htmlspecialchars($event['title']); ?>
-                                            <span class="event-sport-tag"><?php echo htmlspecialchars($event['sport_type']); ?></span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="event-details-grid">
-                                    <div class="detail-point">
-                                        <i class="far fa-calendar-alt"></i> 
-                                        <?php echo date('M d, Y', strtotime($event['event_date'])); ?>
-                                    </div>
-                                    <div class="detail-point">
-                                        <i class="far fa-clock"></i> 
-                                        <?php echo date('h:i A', strtotime($event['event_time'])); ?>
-                                    </div>
-                                    <div class="detail-point">
-                                        <i class="fas fa-map-marker-alt"></i> 
-                                        <?php echo htmlspecialchars($event['venue']); ?>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="event-action">
-                                <?php if ($is_joined): ?>
-                                    <span class="joined-badge">
-                                        <i class="fas fa-check"></i> Registered
-                                    </span>
-                                <?php elseif ($is_upcoming): ?>
-                                    <!-- We could add a simple join form here -->
-                                    <button class="join-btn" onclick="alert('Please contact admin to register for this event!')">
-                                        Join Event
-                                    </button>
-                                <?php else: ?>
-                                    <span class="completed-badge">
-                                        Completed
-                                    </span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <?php
-                    }
-                } else {
-                    echo '<div class="event-card" style="text-align: center; color: #666;">No events available at the moment.</div>';
-                }
-                ?>
-            </div>
+                
+                <button type="submit" name="book_event" style="width: 100%; padding: 12px; background: #0d47a1; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                    Confirm Booking
+                </button>
+            </form>
         </div>
     </div>
 
-    <script>
-        // Simple navigation - for now just scroll to top since it's a single page
-        // In future, you could add separate sections for My Events and Profile
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // Remove active from all
-                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-                
-                // Add active to clicked
-                this.classList.add('active');
-                
-                // For now, just scroll to top for all tabs
-                // You can add specific sections later
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-        });
-    </script>
+    <!-- Notifications Section -->
+    <div id="notifications-section" class="tab-section">
+        <h2 style="color: #0d47a1; margin-bottom: 30px;"><i class="fas fa-bell"></i> Notifications</h2>
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.05);">
+            <?php
+            $n_query = "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC";
+            $n_stmt = $conn->prepare($n_query);
+            $n_stmt->bind_param("i", $user_id);
+            $n_stmt->execute();
+            $notifs = $n_stmt->get_result();
+            
+            if ($notifs->num_rows > 0) {
+                while($n = $notifs->fetch_assoc()) {
+                    ?>
+                    <div style="padding: 15px; border-bottom: 1px solid #eee; display: flex; align-items: start; gap: 15px;">
+                        <div style="width: 40px; height: 40px; background: #e3f2fd; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #0d47a1;">
+                            <i class="fas fa-info"></i>
+                        </div>
+                        <div>
+                            <p style="margin-bottom: 5px; color: #333;"><?php echo htmlspecialchars($n['message']); ?></p>
+                            <small style="color: #999;"><?php echo date('M d, h:i A', strtotime($n['created_at'])); ?></small>
+                        </div>
+                    </div>
+                    <?php
+                }
+            } else {
+                echo '<p style="text-align: center; color: #666; padding: 20px;">No notifications yet.</p>';
+            }
+            ?>
+        </div>
+    </div>
 </body>
 </html>

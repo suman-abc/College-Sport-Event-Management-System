@@ -518,21 +518,20 @@ if (!$conn) {
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#participants" class="nav-link">
-                    <i class="fas fa-users"></i>
+                <a href="admin_approve_users.php"><i class="fas fa-users"></i>
                     <span>Manage Participants</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#volunteers" class="nav-link">
-                    <i class="fas fa-hands-helping"></i>
-                    <span>Manage Volunteers</span>
+                <a href="#grounds" class="nav-link">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>Manage Grounds</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#reports" class="nav-link">
-                    <i class="fas fa-chart-bar"></i>
-                    <span>Reports</span>
+                <a href="#bookings" class="nav-link">
+                    <i class="fas fa-clipboard-check"></i>
+                    <span>Booking Requests</span>
                 </a>
             </li>
         </ul>
@@ -893,6 +892,119 @@ if (!$conn) {
                             <h3>Event Analytics</h3>
                             <div class="number">Coming Soon</div>
                         </div>
+
+            <!-- Grounds Tab -->
+            <div id="grounds-tab" class="tab-content">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3><i class="fas fa-map-marker-alt"></i> Manage Grounds</h3>
+                        <button class="add-btn" onclick="showModal('ground')">
+                            <i class="fas fa-plus"></i> Add New Ground
+                        </button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $all_grounds = mysqli_query($conn, "SELECT * FROM grounds ORDER BY id DESC");
+                            while ($ground = mysqli_fetch_assoc($all_grounds)) {
+                                ?>
+                                <tr>
+                                    <td>#<?php echo $ground['id']; ?></td>
+                                    <td><strong><?php echo htmlspecialchars($ground['name']); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($ground['location']); ?></td>
+                                    <td>
+                                        <span class="status-badge <?php echo $ground['status'] == 'available' ? 'status-active' : 'status-completed'; ?>">
+                                            <?php echo ucfirst($ground['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-edit" onclick="editGround(<?php echo $ground['id']; ?>)">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn-delete" onclick="deleteGround(<?php echo $ground['id']; ?>)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Bookings Tab -->
+            <div id="bookings-tab" class="tab-content">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3><i class="fas fa-clipboard-check"></i> Booking Requests</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>User</th>
+                                <th>Event</th>
+                                <th>Ground</th>
+                                <th>Date/Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $all_bookings = mysqli_query($conn, 
+                                "SELECT b.*, u.name as user_name, e.title as event_title, g.name as ground_name 
+                                 FROM bookings b 
+                                 JOIN users u ON b.user_id = u.id 
+                                 JOIN events e ON b.event_id = e.id 
+                                 JOIN grounds g ON b.ground_id = g.id 
+                                 ORDER BY b.created_at DESC");
+                            while ($booking = mysqli_fetch_assoc($all_bookings)) {
+                                ?>
+                                <tr>
+                                    <td>#<?php echo $booking['id']; ?></td>
+                                    <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($booking['event_title']); ?></td>
+                                    <td><?php echo htmlspecialchars($booking['ground_name']); ?></td>
+                                    <td>
+                                        <?php echo $booking['booking_date'] . ' ' . $booking['booking_time']; ?>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-<?php echo $booking['status'] == 'approved' ? 'active' : ($booking['status'] == 'pending' ? 'upcoming' : 'completed'); ?>">
+                                            <?php echo ucfirst($booking['status']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if ($booking['status'] == 'pending'): ?>
+                                        <div class="action-buttons">
+                                            <button class="btn-edit" style="background:#4caf50" onclick="updateBooking(<?php echo $booking['id']; ?>, 'approve')">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                            <button class="btn-delete" onclick="updateBooking(<?php echo $booking['id']; ?>, 'reject')">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                        <?php else: ?>
+                                            <small><?php echo date('M d', strtotime($booking['created_at'])); ?></small>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon participant">
@@ -1156,7 +1268,129 @@ if (!$conn) {
         </div>
     </div>
 
+    <!-- Add Ground Modal -->
+    <div id="ground-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-map-marker-alt"></i> Add New Ground</h3>
+                <button class="close-modal" onclick="closeModal('ground')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="ground-form" action="manage_ground.php" method="POST">
+                    <div class="form-group">
+                        <label>Ground Name *</label>
+                        <input type="text" name="name" required placeholder="e.g. Main Stadium">
+                    </div>
+                    <div class="form-group">
+                        <label>Location *</label>
+                        <input type="text" name="location" required placeholder="e.g. North Campus">
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" placeholder="Description..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="status">
+                            <option value="available">Available</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="submit-btn" name="add_ground">Add Ground</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Ground Modal -->
+    <div id="edit-ground-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Edit Ground</h3>
+                <button class="close-modal" onclick="closeModal('edit-ground')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-ground-form" action="manage_ground.php" method="POST">
+                    <input type="hidden" id="edit-ground-id" name="ground_id">
+                    <div class="form-group">
+                        <label>Ground Name *</label>
+                        <input type="text" id="edit-ground-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Location *</label>
+                        <input type="text" id="edit-ground-location" name="location" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="edit-ground-description" name="description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="edit-ground-status" name="status">
+                            <option value="available">Available</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="submit-btn" name="update_ground">Update Ground</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Ground Management Functions
+        function editGround(id) {
+            fetch('get_ground.php?id=' + id)
+                .then(r => r.json())
+                .then(data => {
+                    if(data.success) {
+                        document.getElementById('edit-ground-id').value = data.ground.id;
+                        document.getElementById('edit-ground-name').value = data.ground.name;
+                        document.getElementById('edit-ground-location').value = data.ground.location;
+                        document.getElementById('edit-ground-description').value = data.ground.description;
+                        document.getElementById('edit-ground-status').value = data.ground.status;
+                        document.getElementById('edit-ground-modal').style.display = 'flex';
+                    } else {
+                        alert('Error fetching ground data');
+                    }
+                });
+        }
+        
+        function deleteGround(id) {
+            if(confirm('Delete this ground?')) location.href='manage_ground.php?delete='+id;
+        }
+
+        function updateBooking(id, action) {
+            if(confirm(action.toUpperCase() + ' this booking?')) location.href='manage_booking.php?action='+action+'&id='+id;
+        }
+
+        // Updated Modal Functions to include Ground modals
+        const originalShowModal = window.showModal;
+        window.showModal = function(type) {
+            if (type === 'ground') {
+                document.getElementById('ground-modal').style.display = 'flex';
+            } else {
+                originalShowModal(type); // Call original if exists, or basic fallback
+                if(type === 'event') document.getElementById('event-modal').style.display = 'flex';
+                if(type === 'participant') document.getElementById('participant-modal').style.display = 'flex';
+            }
+        }
+
+        const originalCloseModal = window.closeModal;
+        window.closeModal = function(type) {
+            if (type === 'ground') {
+                document.getElementById('ground-modal').style.display = 'none';
+            } else if (type === 'edit-ground') {
+                document.getElementById('edit-ground-modal').style.display = 'none';
+            } else {
+                // Call original logic manually to avoid recursion or undefined if not assigned
+                if (type === 'event') document.getElementById('event-modal').style.display = 'none';
+                if (type === 'participant') document.getElementById('participant-modal').style.display = 'none';
+                if (type === 'edit-event') document.getElementById('edit-event-modal').style.display = 'none';
+                if (type === 'edit-participant') document.getElementById('edit-participant-modal').style.display = 'none';
+            }
+        }
+
         // Navigation
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', function(e) {
